@@ -1,5 +1,8 @@
 package com.example.socialanalytics.controller;
 
+import java.util.Set;
+
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -19,6 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.example.socialanalytics.dto.MetricRequest;
 import com.example.socialanalytics.dto.MetricResponse;
 import com.example.socialanalytics.service.MetricService;
+import com.example.socialanalytics.util.SortValidator;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -27,17 +31,20 @@ import lombok.RequiredArgsConstructor;
 
 @Tag(name = "Metrics", description = "Manage engagement snapshots of posts")
 @RestController
-@RequestMapping("/api/metrics")
+@RequestMapping("/metrics")
 @RequiredArgsConstructor
 public class MetricController {
+
+	private static final Set<String> SORTABLE = Set.of("id", "likes", "shares", "comments", "followers",
+			"collectedAt", "createdAt");
 
 	private final MetricService metricService;
 
 	@Operation(summary = "List metrics, optionally filtered by post")
 	@GetMapping
 	public Page<MetricResponse> list(@RequestParam(required = false) Long postId,
-			@PageableDefault(size = 20, sort = "collectedAt", direction = Sort.Direction.DESC) Pageable pageable) {
-		return metricService.findAll(postId, pageable);
+			@ParameterObject @PageableDefault(size = 20, sort = "collectedAt", direction = Sort.Direction.DESC) Pageable pageable) {
+		return metricService.findAll(postId, SortValidator.validate(pageable, SORTABLE));
 	}
 
 	@Operation(summary = "Get a metric by id")
