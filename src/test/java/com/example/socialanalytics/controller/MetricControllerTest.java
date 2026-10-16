@@ -13,6 +13,7 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.http.MediaType;
@@ -25,6 +26,7 @@ import com.example.socialanalytics.dto.MetricResponse;
 import com.example.socialanalytics.service.MetricService;
 
 @WebMvcTest(MetricController.class)
+@AutoConfigureMockMvc(addFilters = false)
 @ActiveProfiles("test")
 class MetricControllerTest {
 

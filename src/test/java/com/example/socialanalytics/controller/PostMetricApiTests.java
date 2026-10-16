@@ -1,6 +1,7 @@
 package com.example.socialanalytics.controller;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -10,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
@@ -21,6 +23,7 @@ import com.jayway.jsonpath.JsonPath;
 @SpringBootTest
 @ActiveProfiles("test")
 @AutoConfigureMockMvc
+@WithMockUser
 class PostMetricApiTests {
 
 	@Autowired
@@ -28,7 +31,7 @@ class PostMetricApiTests {
 
 	@Test
 	void postAndMetricCrudFlow() throws Exception {
-		MvcResult created = mockMvc.perform(post("/posts").contentType(MediaType.APPLICATION_JSON).content("""
+		MvcResult created = mockMvc.perform(post("/posts").with(csrf()).contentType(MediaType.APPLICATION_JSON).content("""
 				{"platform":"FACEBOOK","externalId":"fb-1","url":"https://facebook.com/p/1","title":"Hello"}
 				"""))
 			.andExpect(status().isCreated())
@@ -36,12 +39,12 @@ class PostMetricApiTests {
 			.andReturn();
 		Number postId = JsonPath.read(created.getResponse().getContentAsString(), "$.id");
 
-		mockMvc.perform(post("/posts").contentType(MediaType.APPLICATION_JSON).content("""
+		mockMvc.perform(post("/posts").with(csrf()).contentType(MediaType.APPLICATION_JSON).content("""
 				{"platform":"FACEBOOK","externalId":"fb-1","url":"https://facebook.com/p/1"}
 				"""))
 			.andExpect(status().isConflict());
 
-		mockMvc.perform(post("/metrics").contentType(MediaType.APPLICATION_JSON).content("""
+		mockMvc.perform(post("/metrics").with(csrf()).contentType(MediaType.APPLICATION_JSON).content("""
 				{"postId":%d,"likes":10,"shares":2,"comments":3,"followers":100}
 				""".formatted(postId.longValue())))
 			.andExpect(status().isCreated())
@@ -51,13 +54,13 @@ class PostMetricApiTests {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.content.length()").value(1));
 
-		mockMvc.perform(delete("/posts/{id}", postId)).andExpect(status().isNoContent());
+		mockMvc.perform(delete("/posts/{id}", postId).with(csrf())).andExpect(status().isNoContent());
 		mockMvc.perform(get("/posts/{id}", postId)).andExpect(status().isNotFound());
 	}
 
 	@Test
 	void rejectsInvalidPost() throws Exception {
-		mockMvc.perform(post("/posts").contentType(MediaType.APPLICATION_JSON).content("{}"))
+		mockMvc.perform(post("/posts").with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{}"))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.errors.platform").exists());
 	}
