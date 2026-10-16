@@ -15,7 +15,9 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import com.example.socialanalytics.entity.JobRun;
 import com.example.socialanalytics.excel.ExcelProcessingException;
 import com.example.socialanalytics.job.UpdateSocialMetricsJob;
+import com.example.socialanalytics.repository.ImportLogRepository;
 import com.example.socialanalytics.repository.JobRunRepository;
+import com.example.socialanalytics.repository.PlatformStatsRepository;
 import com.example.socialanalytics.repository.PostRepository;
 import com.example.socialanalytics.repository.SocialMetricRepository;
 import com.example.socialanalytics.repository.UserRepository;
@@ -38,6 +40,10 @@ public class DashboardController {
 	private final JobRunRepository jobRunRepository;
 
 	private final UpdateSocialMetricsJob updateSocialMetricsJob;
+
+	private final PlatformStatsRepository platformStatsRepository;
+
+	private final ImportLogRepository importLogRepository;
 
 	@GetMapping("/")
 	public String home() {
@@ -62,6 +68,8 @@ public class DashboardController {
 		jobRunRepository.findTopByJobNameOrderByStartedAtDesc(UpdateSocialMetricsJob.JOB_NAME)
 			.ifPresent(run -> model.addAttribute("lastRun", run));
 		model.addAttribute("jobRunning", updateSocialMetricsJob.isRunning());
+		model.addAttribute("platformStats", platformStatsRepository.findAllByOrderByPlatform());
+		model.addAttribute("recentImports", importLogRepository.findTop5ByOrderByImportedAtDesc());
 		return "dashboard";
 	}
 

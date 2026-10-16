@@ -17,7 +17,10 @@ import org.springframework.mock.web.MockMultipartFile;
 import com.example.socialanalytics.dto.ImportResult;
 import com.example.socialanalytics.dto.PostRequest;
 import com.example.socialanalytics.entity.Post;
+import com.example.socialanalytics.entity.SocialPlatform;
 import com.example.socialanalytics.excel.ExcelTestFiles;
+import com.example.socialanalytics.messaging.ImportCompletedEvent;
+import com.example.socialanalytics.messaging.ImportEventPublisher;
 import com.example.socialanalytics.repository.PostRepository;
 import com.example.socialanalytics.repository.SocialMetricRepository;
 
@@ -30,8 +33,10 @@ class PostExcelServiceTest {
 
 	private final PostService postService = mock(PostService.class);
 
+	private final ImportEventPublisher publisher = mock(ImportEventPublisher.class);
+
 	private final PostExcelService service = new PostExcelService(postService, mock(PostRepository.class),
-			mock(SocialMetricRepository.class), validatorFactory.getValidator());
+			mock(SocialMetricRepository.class), validatorFactory.getValidator(), publisher);
 
 	@AfterEach
 	void close() {
@@ -53,6 +58,8 @@ class PostExcelServiceTest {
 			assertThat(error.message()).startsWith("Could not save row");
 		});
 		verify(postService, times(3)).create(any(PostRequest.class));
+		verify(publisher).publish(argThat((ImportCompletedEvent event) -> event.imported() == 2 && event.failed() == 1
+				&& event.importedByPlatform().get(SocialPlatform.FACEBOOK) == 2 && event.importId() != null));
 	}
 
 	@Test

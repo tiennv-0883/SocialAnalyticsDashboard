@@ -2,11 +2,14 @@ package com.example.socialanalytics.service;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -20,10 +23,13 @@ import com.example.socialanalytics.dto.PostExcelRow;
 import com.example.socialanalytics.dto.PostReportRow;
 import com.example.socialanalytics.entity.Post;
 import com.example.socialanalytics.entity.SocialMetric;
+import com.example.socialanalytics.entity.SocialPlatform;
 import com.example.socialanalytics.excel.ExcelMapper;
 import com.example.socialanalytics.excel.ExcelMapper.RowResult;
 import com.example.socialanalytics.excel.ExcelProcessingException;
 import com.example.socialanalytics.exception.DuplicateResourceException;
+import com.example.socialanalytics.messaging.ImportCompletedEvent;
+import com.example.socialanalytics.messaging.ImportEventPublisher;
 import com.example.socialanalytics.repository.PostRepository;
 import com.example.socialanalytics.repository.SocialMetricRepository;
 
@@ -47,6 +53,8 @@ public class PostExcelService {
 
 	private final Validator validator;
 
+	private final ImportEventPublisher importEventPublisher;
+
 	/**
 	 * Imports posts row by row: valid rows are saved, invalid or duplicate rows are
 	 * reported back without stopping the whole import.
@@ -62,17 +70,21 @@ public class PostExcelService {
 		}
 
 		List<ImportResult.RowError> errors = new ArrayList<>();
+		Map<SocialPlatform, Integer> importedByPlatform = new EnumMap<>(SocialPlatform.class);
 		int imported = 0;
 		for (RowResult<PostExcelRow> row : rows) {
 			String error = row.isSuccess() ? save(row.rowNumber(), row.value()) : row.error();
 			if (error == null) {
 				imported++;
+				importedByPlatform.merge(row.value().getPlatform(), 1, Integer::sum);
 			}
 			else {
 				errors.add(new ImportResult.RowError(row.rowNumber(), error));
 			}
 		}
 		log.info("Imported posts from '{}': {} ok, {} failed", file.getOriginalFilename(), imported, errors.size());
+		importEventPublisher.publish(new ImportCompletedEvent(UUID.randomUUID().toString(), file.getOriginalFilename(),
+				rows.size(), imported, errors.size(), importedByPlatform, Instant.now()));
 		return new ImportResult(rows.size(), imported, errors.size(), errors);
 	}
 
