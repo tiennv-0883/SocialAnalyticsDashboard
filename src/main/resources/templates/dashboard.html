@@ -57,6 +57,29 @@
 		<p class="muted">Tự động chạy mỗi giờ (job <code>updateSocialMetricsJob</code>, dữ liệu mock FB/X).</p>
 	</div>
 
+	<div class="card" th:if="${!platformStats.isEmpty() or !recentImports.isEmpty()}">
+		<h2>Thống kê tổng hợp (cập nhật qua JMS)</h2>
+		<table th:if="${!platformStats.isEmpty()}" style="margin-bottom:12px">
+			<tr><th>Nền tảng</th><th>Bài viết</th><th>Đã import</th><th>Số lần import</th><th>Import gần nhất</th></tr>
+			<tr th:each="stats : ${platformStats}">
+				<td th:text="${stats.platform}"></td>
+				<td th:text="${stats.postCount}"></td>
+				<td th:text="${stats.importedPosts}"></td>
+				<td th:text="${stats.importCount}"></td>
+				<td th:text="${stats.lastImportAt != null ? #temporals.format(stats.lastImportAt, 'yyyy-MM-dd HH:mm', 'Asia/Ho_Chi_Minh') : '-'}"></td>
+			</tr>
+		</table>
+		<table th:if="${!recentImports.isEmpty()}">
+			<tr><th>File</th><th>Thời điểm</th><th>Thành công</th><th>Lỗi</th></tr>
+			<tr th:each="imp : ${recentImports}">
+				<td th:text="${imp.fileName}"></td>
+				<td th:text="${#temporals.format(imp.importedAt, 'yyyy-MM-dd HH:mm:ss', 'Asia/Ho_Chi_Minh')}"></td>
+				<td th:text="${imp.imported}"></td>
+				<td th:text="${imp.failed}"></td>
+			</tr>
+		</table>
+	</div>
+
 	<div class="card">
 		<h2>Import bài viết từ Excel</h2>
 		<div class="alert ok" th:if="${importResult}">
