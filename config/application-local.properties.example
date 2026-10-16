@@ -1,0 +1,6 @@
+# Copy file nay thanh config/application-local.properties va dien thong tin MySQL tren may ban.
+# App chay voi profile mac dinh "local" nen Spring Boot tu dong doc file nay (chay tu thu muc goc du an).
+# File config/application-local.properties da duoc .gitignore, khong bi commit.
+spring.datasource.url=jdbc:mysql://localhost:3306/social_analytics?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+spring.datasource.username=root
+spring.datasource.password=

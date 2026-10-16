@@ -1,5 +1,8 @@
 package com.example.socialanalytics.controller;
 
+import java.util.Set;
+
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -19,6 +22,7 @@ import com.example.socialanalytics.dto.PostRequest;
 import com.example.socialanalytics.dto.PostResponse;
 import com.example.socialanalytics.entity.SocialPlatform;
 import com.example.socialanalytics.service.PostService;
+import com.example.socialanalytics.util.SortValidator;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -27,17 +31,19 @@ import lombok.RequiredArgsConstructor;
 
 @Tag(name = "Posts", description = "Manage tracked social posts")
 @RestController
-@RequestMapping("/api/posts")
+@RequestMapping("/posts")
 @RequiredArgsConstructor
 public class PostController {
+
+	private static final Set<String> SORTABLE = Set.of("id", "platform", "externalId", "title", "createdAt", "updatedAt");
 
 	private final PostService postService;
 
 	@Operation(summary = "List posts, optionally filtered by platform")
 	@GetMapping
 	public Page<PostResponse> list(@RequestParam(required = false) SocialPlatform platform,
-			@PageableDefault(size = 20) Pageable pageable) {
-		return postService.findAll(platform, pageable);
+			@ParameterObject @PageableDefault(size = 20) Pageable pageable) {
+		return postService.findAll(platform, SortValidator.validate(pageable, SORTABLE));
 	}
 
 	@Operation(summary = "Get a post by id")

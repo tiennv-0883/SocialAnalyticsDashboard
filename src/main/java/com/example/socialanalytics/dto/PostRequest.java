@@ -1,5 +1,6 @@
 package com.example.socialanalytics.dto;
 
+import com.example.socialanalytics.entity.Post;
 import com.example.socialanalytics.entity.SocialPlatform;
 
 import jakarta.validation.constraints.NotBlank;
@@ -11,5 +12,5 @@ public record PostRequest(
 		@NotBlank @Size(max = 100) String externalId,
 		@NotBlank @Size(max = 500) String url,
 		@Size(max = 255) String title,
-		String content) {
+		@Size(max = Post.CONTENT_MAX_LENGTH) String content) {
 }

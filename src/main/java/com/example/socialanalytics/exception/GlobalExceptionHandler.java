@@ -8,6 +8,9 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+
+import com.example.socialanalytics.excel.ExcelProcessingException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -20,6 +23,21 @@ public class GlobalExceptionHandler {
 	@ExceptionHandler(DuplicateResourceException.class)
 	public ProblemDetail handleDuplicate(DuplicateResourceException ex) {
 		return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+	}
+
+	@ExceptionHandler(InvalidSortException.class)
+	public ProblemDetail handleInvalidSort(InvalidSortException ex) {
+		return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+	}
+
+	@ExceptionHandler(ExcelProcessingException.class)
+	public ProblemDetail handleExcel(ExcelProcessingException ex) {
+		return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+	}
+
+	@ExceptionHandler(MaxUploadSizeExceededException.class)
+	public ProblemDetail handleMaxUploadSize(MaxUploadSizeExceededException ex) {
+		return ProblemDetail.forStatusAndDetail(HttpStatus.CONTENT_TOO_LARGE, "File is too large");
 	}
 
 	@ExceptionHandler(MethodArgumentNotValidException.class)
