@@ -35,6 +35,29 @@
 	</div>
 
 	<div class="card">
+		<h2>Cập nhật metrics (background job)</h2>
+		<div class="alert ok" th:if="${jobMessage}" th:text="${jobMessage}"></div>
+		<div class="alert err" th:if="${jobError}" th:text="${jobError}"></div>
+		<p>
+			<b>Last updated time:</b>
+			<span th:if="${lastUpdatedAt}" th:text="${#temporals.format(lastUpdatedAt, 'yyyy-MM-dd HH:mm:ss', 'Asia/Ho_Chi_Minh')}"></span>
+			<span th:unless="${lastUpdatedAt}" class="muted">chưa có</span>
+			<span th:if="${jobRunning}" class="muted">· đang chạy...</span>
+		</p>
+		<p class="muted" th:if="${lastRun}">
+			Lần chạy gần nhất: <span th:text="${lastRun.status}"></span> (<span th:text="${lastRun.trigger}"></span>)
+			· cập nhật <span th:text="${lastRun.updatedItems}"></span>/<span th:text="${lastRun.totalItems}"></span> bài,
+			lỗi <span th:text="${lastRun.failedItems}"></span>
+			<span th:if="${lastRun.durationMs != null}" th:text="'· ' + ${lastRun.durationMs} + ' ms'"></span>
+			<br><span th:if="${lastRun.message}" th:text="${lastRun.message}"></span>
+		</p>
+		<form th:action="@{/dashboard/jobs/update-metrics}" method="post">
+			<button class="btn primary" type="submit" th:disabled="${jobRunning}">Chạy cập nhật ngay</button>
+		</form>
+		<p class="muted">Tự động chạy mỗi giờ (job <code>updateSocialMetricsJob</code>, dữ liệu mock FB/X).</p>
+	</div>
+
+	<div class="card">
 		<h2>Import bài viết từ Excel</h2>
 		<div class="alert ok" th:if="${importResult}">
 			Đã import <b th:text="${importResult.imported}"></b>/<span th:text="${importResult.totalRows}"></span> dòng,

@@ -24,7 +24,7 @@ public class SecurityConfig {
 	private static final RequestMatcher API = new OrRequestMatcher(
 			PathPatternRequestMatcher.pathPattern("/posts/**"), PathPatternRequestMatcher.pathPattern("/metrics/**"),
 			PathPatternRequestMatcher.pathPattern("/import-posts"),
-			PathPatternRequestMatcher.pathPattern("/export-report"));
+			PathPatternRequestMatcher.pathPattern("/export-report"), PathPatternRequestMatcher.pathPattern("/jobs/**"));
 
 	@Bean
 	public SecurityFilterChain securityFilterChain(HttpSecurity http, SocialOAuth2UserService userService)
