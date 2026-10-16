@@ -87,7 +87,8 @@ class ExcelApiTests {
 		}
 
 		mockMvc.perform(multipart("/import-posts")
-			.file(new MockMultipartFile("file", "big.xlsx", null, ExcelTestFiles.workbook(rows))))
+			.file(new MockMultipartFile("file", "big.xlsx", null, ExcelTestFiles.workbook(rows)))
+			.with(csrf()))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.detail").value("Too many rows: at most 5000 data rows are allowed"));
 		assertThat(postRepository.findAll()).noneMatch(post -> post.getExternalId().startsWith("limit-"));
@@ -97,7 +98,8 @@ class ExcelApiTests {
 	void rejectsFileMissingRequiredColumn() throws Exception {
 		byte[] excel = ExcelTestFiles.workbook(new Object[][] { { "platform", "externalId" }, { "FACEBOOK", "no-url-1" } });
 
-		mockMvc.perform(multipart("/import-posts").file(new MockMultipartFile("file", "posts.xlsx", null, excel)))
+		mockMvc.perform(multipart("/import-posts").file(new MockMultipartFile("file", "posts.xlsx", null, excel))
+			.with(csrf()))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.detail").value(startsWith("Missing required columns: [url]")));
 	}
