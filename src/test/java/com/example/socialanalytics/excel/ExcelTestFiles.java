@@ -8,8 +8,11 @@ import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
-/** Builds small .xlsx files for tests; numbers become numeric cells, null leaves the cell empty. */
 public final class ExcelTestFiles {
+
+	/** Formula cell content, without the leading '='. */
+	public record Formula(String expression) {
+	}
 
 	private ExcelTestFiles() {
 	}
@@ -21,7 +24,10 @@ public final class ExcelTestFiles {
 				Row row = sheet.createRow(r);
 				for (int c = 0; c < rows[r].length; c++) {
 					Object value = rows[r][c];
-					if (value instanceof Number number) {
+					if (value instanceof Formula formula) {
+						row.createCell(c).setCellFormula(formula.expression());
+					}
+					else if (value instanceof Number number) {
 						row.createCell(c).setCellValue(number.doubleValue());
 					}
 					else if (value != null) {

@@ -21,6 +21,8 @@ import lombok.Setter;
 		uniqueConstraints = @UniqueConstraint(columnNames = { "platform", "external_id" }))
 public class Post extends BaseEntity {
 
+	public static final int CONTENT_MAX_LENGTH = 16_000;
+
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 20)
 	private SocialPlatform platform;

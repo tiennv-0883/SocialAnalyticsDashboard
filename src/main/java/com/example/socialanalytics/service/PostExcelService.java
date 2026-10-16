@@ -10,6 +10,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -36,6 +37,8 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class PostExcelService {
 
+	public static final int MAX_IMPORT_ROWS = 5_000;
+
 	private final PostService postService;
 
 	private final PostRepository postRepository;
@@ -52,7 +55,7 @@ public class PostExcelService {
 		validateFile(file);
 		List<RowResult<PostExcelRow>> rows;
 		try (InputStream input = file.getInputStream()) {
-			rows = ExcelMapper.read(input, PostExcelRow.class);
+			rows = ExcelMapper.read(input, PostExcelRow.class, MAX_IMPORT_ROWS);
 		}
 		catch (IOException ex) {
 			throw new ExcelProcessingException("Cannot read uploaded file", ex);
@@ -61,7 +64,7 @@ public class PostExcelService {
 		List<ImportResult.RowError> errors = new ArrayList<>();
 		int imported = 0;
 		for (RowResult<PostExcelRow> row : rows) {
-			String error = row.isSuccess() ? save(row.value()) : row.error();
+			String error = row.isSuccess() ? save(row.rowNumber(), row.value()) : row.error();
 			if (error == null) {
 				imported++;
 			}
@@ -87,7 +90,7 @@ public class PostExcelService {
 		return ExcelMapper.write(rows, PostReportRow.class, "Report");
 	}
 
-	private String save(PostExcelRow row) {
+	private String save(int rowNumber, PostExcelRow row) {
 		Set<ConstraintViolation<PostExcelRow>> violations = validator.validate(row);
 		if (!violations.isEmpty()) {
 			return violations.stream()
@@ -101,6 +104,10 @@ public class PostExcelService {
 		}
 		catch (DuplicateResourceException ex) {
 			return ex.getMessage();
+		}
+		catch (DataIntegrityViolationException ex) {
+			log.warn("Import row {} rejected by database: {}", rowNumber, ex.getMostSpecificCause().getMessage());
+			return "Could not save row: violates a database constraint (duplicate post or value too long)";
 		}
 	}
 

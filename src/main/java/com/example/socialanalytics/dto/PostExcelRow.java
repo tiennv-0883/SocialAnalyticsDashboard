@@ -1,5 +1,6 @@
 package com.example.socialanalytics.dto;
 
+import com.example.socialanalytics.entity.Post;
 import com.example.socialanalytics.entity.SocialPlatform;
 import com.example.socialanalytics.excel.ExcelColumn;
 
@@ -16,23 +17,24 @@ import lombok.NoArgsConstructor;
 public class PostExcelRow {
 
 	@NotNull
-	@ExcelColumn(name = "platform", order = 1)
+	@ExcelColumn(name = "platform", order = 1, required = true)
 	private SocialPlatform platform;
 
 	@NotBlank
 	@Size(max = 100)
-	@ExcelColumn(name = "externalId", order = 2)
+	@ExcelColumn(name = "externalId", order = 2, required = true)
 	private String externalId;
 
 	@NotBlank
 	@Size(max = 500)
-	@ExcelColumn(name = "url", order = 3)
+	@ExcelColumn(name = "url", order = 3, required = true)
 	private String url;
 
 	@Size(max = 255)
 	@ExcelColumn(name = "title", order = 4)
 	private String title;
 
+	@Size(max = Post.CONTENT_MAX_LENGTH)
 	@ExcelColumn(name = "content", order = 5)
 	private String content;
 

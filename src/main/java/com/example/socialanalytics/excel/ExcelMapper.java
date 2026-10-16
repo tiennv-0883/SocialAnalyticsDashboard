@@ -18,17 +18,31 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import javax.xml.parsers.ParserConfigurationException;
+
+import org.apache.poi.EmptyFileException;
+import org.apache.poi.UnsupportedFileFormatException;
+import org.apache.poi.ooxml.POIXMLException;
+import org.apache.poi.openxml4j.exceptions.OpenXML4JException;
+import org.apache.poi.openxml4j.opc.OPCPackage;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.DataFormatter;
 import org.apache.poi.ss.usermodel.DateUtil;
 import org.apache.poi.ss.usermodel.Font;
+import org.apache.poi.ss.usermodel.FormulaEvaluator;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
-import org.apache.poi.ss.usermodel.WorkbookFactory;
+import org.apache.poi.util.XMLHelper;
+import org.apache.poi.xssf.eventusermodel.XSSFReader;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.xml.sax.Attributes;
+import org.xml.sax.InputSource;
+import org.xml.sax.SAXException;
+import org.xml.sax.XMLReader;
+import org.xml.sax.helpers.DefaultHandler;
 
 public final class ExcelMapper {
 
@@ -46,9 +60,22 @@ public final class ExcelMapper {
 	}
 
 	public static <T> List<RowResult<T>> read(InputStream input, Class<T> type) {
+		return read(input, type, Integer.MAX_VALUE);
+	}
+
+	/**
+	 * Reads the first sheet of an .xlsx file. Rejects the whole file (before building the
+	 * workbook in memory) when it has more than {@code maxRows} data rows, and when a
+	 * {@link ExcelColumn#required() required} column is missing from the header.
+	 */
+	public static <T> List<RowResult<T>> read(InputStream input, Class<T> type, int maxRows) {
 		List<Field> fields = columnFields(type);
 		Constructor<T> constructor = noArgConstructor(type);
-		try (Workbook workbook = WorkbookFactory.create(input)) {
+		OPCPackage pkg = null;
+		try {
+			pkg = OPCPackage.open(input);
+			ensureRowLimit(pkg, maxRows);
+			Workbook workbook = new XSSFWorkbook(pkg);
 			Sheet sheet = workbook.getSheetAt(0);
 			Row header = sheet.getRow(sheet.getFirstRowNum());
 			if (header == null) {
@@ -56,6 +83,7 @@ public final class ExcelMapper {
 			}
 			Map<Field, Integer> columnIndexes = resolveColumns(header, fields);
 			DataFormatter formatter = new DataFormatter();
+			FormulaEvaluator evaluator = workbook.getCreationHelper().createFormulaEvaluator();
 
 			List<RowResult<T>> results = new ArrayList<>();
 			for (int i = header.getRowNum() + 1; i <= sheet.getLastRowNum(); i++) {
@@ -70,7 +98,7 @@ public final class ExcelMapper {
 						Field field = entry.getKey();
 						Cell cell = row.getCell(entry.getValue());
 						try {
-							field.set(target, convert(cell, field.getType(), formatter));
+							field.set(target, convert(cell, field.getType(), formatter, evaluator));
 						}
 						catch (IllegalArgumentException ex) {
 							throw new ExcelProcessingException(
@@ -88,9 +116,63 @@ public final class ExcelMapper {
 			}
 			return results;
 		}
-		catch (IOException | org.apache.poi.EmptyFileException | org.apache.poi.UnsupportedFileFormatException ex) {
+		catch (IOException | OpenXML4JException | SAXException | EmptyFileException | UnsupportedFileFormatException
+				| POIXMLException ex) {
 			throw new ExcelProcessingException("Cannot read Excel file: " + ex.getMessage(), ex);
 		}
+		finally {
+			if (pkg != null) {
+				// read-only use: discard instead of close(), which would try to save the package
+				pkg.revert();
+			}
+		}
+	}
+
+	/**
+	 * Counts rows of the first sheet with a streaming SAX parse and stops as soon as the
+	 * limit is exceeded, so oversized files fail fast without loading the whole sheet.
+	 */
+	private static void ensureRowLimit(OPCPackage pkg, int maxRows)
+			throws IOException, OpenXML4JException, SAXException {
+		if (maxRows == Integer.MAX_VALUE) {
+			return;
+		}
+		XSSFReader reader = new XSSFReader(pkg);
+		XSSFReader.SheetIterator sheets = (XSSFReader.SheetIterator) reader.getSheetsData();
+		if (!sheets.hasNext()) {
+			throw new ExcelProcessingException("Excel file is empty");
+		}
+		long maxRowElements = (long) maxRows + 1; // + header row
+		try (InputStream sheet = sheets.next()) {
+			XMLReader parser = XMLHelper.newXMLReader();
+			parser.setContentHandler(new DefaultHandler() {
+
+				private long rows;
+
+				@Override
+				public void startElement(String uri, String localName, String qName, Attributes attributes)
+						throws SAXException {
+					if ("row".equals(localName) && ++rows > maxRowElements) {
+						throw new RowLimitExceededException();
+					}
+				}
+
+			});
+			parser.parse(new InputSource(sheet));
+		}
+		catch (RowLimitExceededException ex) {
+			throw new ExcelProcessingException("Too many rows: at most " + maxRows + " data rows are allowed");
+		}
+		catch (ParserConfigurationException ex) {
+			throw new IllegalStateException("Cannot create XML parser", ex);
+		}
+	}
+
+	/** Used only to abort the SAX parse early. */
+	private static final class RowLimitExceededException extends SAXException {
+
+		private static final long serialVersionUID = 1L;
+
 	}
 
 	public static <T> byte[] write(List<T> items, Class<T> type, String sheetName) {
@@ -161,31 +243,40 @@ public final class ExcelMapper {
 				columnIndexes.put(field, index);
 			}
 		}
+		List<String> expected = fields.stream().map(field -> field.getAnnotation(ExcelColumn.class).name()).toList();
 		if (columnIndexes.isEmpty()) {
-			throw new ExcelProcessingException("No known columns found in header row. Expected: "
-					+ fields.stream().map(field -> field.getAnnotation(ExcelColumn.class).name()).toList());
+			throw new ExcelProcessingException("No known columns found in header row. Expected: " + expected);
+		}
+		List<String> missing = fields.stream()
+			.filter(field -> field.getAnnotation(ExcelColumn.class).required() && !columnIndexes.containsKey(field))
+			.map(field -> field.getAnnotation(ExcelColumn.class).name())
+			.toList();
+		if (!missing.isEmpty()) {
+			throw new ExcelProcessingException("Missing required columns: " + missing + ". Expected: " + expected);
 		}
 		return columnIndexes;
 	}
 
-	private static Object convert(Cell cell, Class<?> type, DataFormatter formatter) {
-		if (cell == null || cell.getCellType() == CellType.BLANK) {
+	private static Object convert(Cell cell, Class<?> type, DataFormatter formatter, FormulaEvaluator evaluator) {
+		CellType cellType = (cell == null) ? CellType.BLANK : resultType(cell, evaluator);
+		if (cellType == CellType.BLANK) {
 			if (type.isPrimitive()) {
 				throw new IllegalArgumentException("value is required");
 			}
 			return null;
 		}
 		if (type == Instant.class || type == LocalDateTime.class || type == LocalDate.class) {
-			LocalDateTime dateTime = (cell.getCellType() == CellType.NUMERIC && DateUtil.isCellDateFormatted(cell))
-					? cell.getLocalDateTimeCellValue() : LocalDateTime.parse(formatter.formatCellValue(cell).trim());
+			LocalDateTime dateTime = (cellType == CellType.NUMERIC && DateUtil.isCellDateFormatted(cell))
+					? cell.getLocalDateTimeCellValue()
+					: LocalDateTime.parse(formatter.formatCellValue(cell, evaluator).trim());
 			if (type == LocalDate.class) {
 				return dateTime.toLocalDate();
 			}
 			return (type == Instant.class) ? dateTime.toInstant(ZoneOffset.UTC) : dateTime;
 		}
-		String text = formatter.formatCellValue(cell).trim();
+		String text = formatter.formatCellValue(cell, evaluator).trim();
 		if (text.isEmpty()) {
-			return convert(null, type, formatter);
+			return convert(null, type, formatter, evaluator);
 		}
 		try {
 			if (type == String.class) {
@@ -211,6 +302,23 @@ public final class ExcelMapper {
 			throw new IllegalArgumentException("'" + text + "' is not a valid " + type.getSimpleName());
 		}
 		throw new IllegalArgumentException("unsupported field type " + type.getSimpleName());
+	}
+
+	private static CellType resultType(Cell cell, FormulaEvaluator evaluator) {
+		if (cell.getCellType() != CellType.FORMULA) {
+			return cell.getCellType();
+		}
+		CellType result;
+		try {
+			result = evaluator.evaluateFormulaCell(cell);
+		}
+		catch (RuntimeException ex) {
+			throw new IllegalArgumentException("cannot evaluate formula '=" + cell.getCellFormula() + "'");
+		}
+		if (result == CellType.ERROR) {
+			throw new IllegalArgumentException("formula '=" + cell.getCellFormula() + "' returns an error");
+		}
+		return result;
 	}
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })

@@ -13,4 +13,6 @@ public @interface ExcelColumn {
 
 	int order() default 0;
 
+	boolean required() default false;
+
 }

@@ -1,6 +1,7 @@
 package com.example.socialanalytics.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -24,6 +25,7 @@ import com.example.socialanalytics.excel.ExcelMapper;
 import com.example.socialanalytics.excel.ExcelMapper.RowResult;
 import com.example.socialanalytics.excel.ExcelTestFiles;
 import com.example.socialanalytics.repository.PostRepository;
+import com.example.socialanalytics.service.PostExcelService;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -71,6 +73,30 @@ class ExcelApiTests {
 			.satisfies(row -> assertThat(row.getLikes()).isEqualTo(42L));
 		assertThat(rows).filteredOn(row -> row.getExternalId().equals("imp-tw-1")).singleElement()
 			.satisfies(row -> assertThat(row.getLikes()).isNull());
+	}
+
+	@Test
+	void rejectsFileOverRowLimit() throws Exception {
+		Object[][] rows = new Object[PostExcelService.MAX_IMPORT_ROWS + 2][];
+		rows[0] = new Object[] { "platform", "externalId", "url" };
+		for (int i = 1; i < rows.length; i++) {
+			rows[i] = new Object[] { "FACEBOOK", "limit-" + i, "u" };
+		}
+
+		mockMvc.perform(multipart("/import-posts")
+			.file(new MockMultipartFile("file", "big.xlsx", null, ExcelTestFiles.workbook(rows))))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.detail").value("Too many rows: at most 5000 data rows are allowed"));
+		assertThat(postRepository.findAll()).noneMatch(post -> post.getExternalId().startsWith("limit-"));
+	}
+
+	@Test
+	void rejectsFileMissingRequiredColumn() throws Exception {
+		byte[] excel = ExcelTestFiles.workbook(new Object[][] { { "platform", "externalId" }, { "FACEBOOK", "no-url-1" } });
+
+		mockMvc.perform(multipart("/import-posts").file(new MockMultipartFile("file", "posts.xlsx", null, excel)))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.detail").value(startsWith("Missing required columns: [url]")));
 	}
 
 	@Test

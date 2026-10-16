@@ -14,6 +14,7 @@ import com.example.socialanalytics.dto.PostExcelRow;
 import com.example.socialanalytics.dto.PostReportRow;
 import com.example.socialanalytics.entity.SocialPlatform;
 import com.example.socialanalytics.excel.ExcelMapper.RowResult;
+import com.example.socialanalytics.excel.ExcelTestFiles.Formula;
 
 class ExcelMapperTest {
 
@@ -56,6 +57,54 @@ class ExcelMapperTest {
 		assertThat(read.get(0).isSuccess()).isFalse();
 		assertThat(read.get(0).error()).contains("platform").contains("INSTAGRAM");
 		assertThat(read.get(1).isSuccess()).isTrue();
+	}
+
+	@Test
+	void readUsesFormulaResultsInsteadOfFormulaText() throws IOException {
+		byte[] bytes = ExcelTestFiles.workbook(new Object[][] { { "platform", "externalId", "url", "title" },
+				{ "FACEBOOK", new Formula("100+23"), new Formula("\"https://fb.com/\"&B2"), new Formula("UPPER(\"hello\")") } });
+
+		PostExcelRow row = ExcelMapper.read(new ByteArrayInputStream(bytes), PostExcelRow.class).get(0).value();
+
+		assertThat(row.getExternalId()).isEqualTo("123");
+		assertThat(row.getUrl()).isEqualTo("https://fb.com/123");
+		assertThat(row.getTitle()).isEqualTo("HELLO");
+	}
+
+	@Test
+	void readReportsFormulaErrorPerRow() throws IOException {
+		byte[] bytes = ExcelTestFiles.workbook(new Object[][] { { "platform", "externalId", "url" },
+				{ "FACEBOOK", new Formula("1/0"), "u" }, { "TWITTER", "tw-1", "u" } });
+
+		List<RowResult<PostExcelRow>> read = ExcelMapper.read(new ByteArrayInputStream(bytes), PostExcelRow.class);
+
+		assertThat(read.get(0).error()).contains("externalId").contains("=1/0").contains("returns an error");
+		assertThat(read.get(1).isSuccess()).isTrue();
+	}
+
+	@Test
+	void readRejectsFileMissingRequiredColumnOnce() throws IOException {
+		byte[] bytes = ExcelTestFiles.workbook(new Object[][] { { "platform", "externalId", "title" },
+				{ "FACEBOOK", "fb-1", "a" }, { "FACEBOOK", "fb-2", "b" } });
+
+		assertThatThrownBy(() -> ExcelMapper.read(new ByteArrayInputStream(bytes), PostExcelRow.class))
+			.isInstanceOf(ExcelProcessingException.class)
+			.hasMessageStartingWith("Missing required columns: [url]");
+	}
+
+	@Test
+	void readRejectsFileOverRowLimitBeforeMapping() throws IOException {
+		Object[][] rows = new Object[5][];
+		rows[0] = new Object[] { "platform", "externalId", "url" };
+		for (int i = 1; i < rows.length; i++) {
+			rows[i] = new Object[] { "FACEBOOK", "fb-" + i, "u" };
+		}
+		byte[] bytes = ExcelTestFiles.workbook(rows);
+
+		assertThat(ExcelMapper.read(new ByteArrayInputStream(bytes), PostExcelRow.class, 4)).hasSize(4);
+		assertThatThrownBy(() -> ExcelMapper.read(new ByteArrayInputStream(bytes), PostExcelRow.class, 3))
+			.isInstanceOf(ExcelProcessingException.class)
+			.hasMessage("Too many rows: at most 3 data rows are allowed");
 	}
 
 	@Test
