@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Đăng nhập · Social Analytics</title>
+	<link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+<div class="wrap" style="max-width: 420px; padding-top: 80px;">
+	<div class="card stack">
+		<h1>Social Analytics Dashboard</h1>
+		<p class="muted">Đăng nhập bằng tài khoản mạng xã hội để tiếp tục.</p>
+		<div class="alert err" th:if="${param.error}">
+			Đăng nhập thất bại. Vui lòng thử lại.
+			<div th:if="${loginError}" th:text="${loginError}" style="margin-top:6px;font-size:13px;word-break:break-word"></div>
+		</div>
+		<div class="alert ok" th:if="${param.logout}">Bạn đã đăng xuất.</div>
+		<a class="btn fb" th:href="${facebookLoginUrl}" style="display:block;text-align:center">Đăng nhập với Facebook</a>
+		<a class="btn x" th:href="${twitterLoginUrl}" style="display:block;text-align:center">Đăng nhập với X (Twitter)</a>
+	</div>
+</div>
+</body>
+</html>

@@ -2,6 +2,7 @@ package com.example.socialanalytics.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.startsWith;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -17,6 +18,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -30,6 +32,7 @@ import com.example.socialanalytics.service.PostExcelService;
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
+@WithMockUser
 class ExcelApiTests {
 
 	@Autowired
@@ -47,7 +50,7 @@ class ExcelApiTests {
 				{ "TWITTER", "imp-tw-2", "", "Missing url" },
 				{ "INSTAGRAM", "imp-ig-1", "https://ig.com/1", "Unsupported platform" } });
 
-		mockMvc.perform(multipart("/import-posts").file(new MockMultipartFile("file", "posts.xlsx", null, excel)))
+		mockMvc.perform(multipart("/import-posts").file(new MockMultipartFile("file", "posts.xlsx", null, excel)).with(csrf()))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.totalRows").value(5))
 			.andExpect(jsonPath("$.imported").value(2))
@@ -59,7 +62,7 @@ class ExcelApiTests {
 
 		Long postId = postRepository.findAll().stream().filter(p -> p.getExternalId().equals("imp-fb-1")).findFirst()
 			.orElseThrow().getId();
-		mockMvc.perform(post("/metrics").contentType(MediaType.APPLICATION_JSON)
+		mockMvc.perform(post("/metrics").with(csrf()).contentType(MediaType.APPLICATION_JSON)
 			.content("{\"postId\":%d,\"likes\":42,\"shares\":1,\"comments\":0,\"followers\":7}".formatted(postId)))
 			.andExpect(status().isCreated());
 
@@ -84,7 +87,8 @@ class ExcelApiTests {
 		}
 
 		mockMvc.perform(multipart("/import-posts")
-			.file(new MockMultipartFile("file", "big.xlsx", null, ExcelTestFiles.workbook(rows))))
+			.file(new MockMultipartFile("file", "big.xlsx", null, ExcelTestFiles.workbook(rows)))
+			.with(csrf()))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.detail").value("Too many rows: at most 5000 data rows are allowed"));
 		assertThat(postRepository.findAll()).noneMatch(post -> post.getExternalId().startsWith("limit-"));
@@ -94,14 +98,15 @@ class ExcelApiTests {
 	void rejectsFileMissingRequiredColumn() throws Exception {
 		byte[] excel = ExcelTestFiles.workbook(new Object[][] { { "platform", "externalId" }, { "FACEBOOK", "no-url-1" } });
 
-		mockMvc.perform(multipart("/import-posts").file(new MockMultipartFile("file", "posts.xlsx", null, excel)))
+		mockMvc.perform(multipart("/import-posts").file(new MockMultipartFile("file", "posts.xlsx", null, excel))
+			.with(csrf()))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.detail").value(startsWith("Missing required columns: [url]")));
 	}
 
 	@Test
 	void rejectsNonXlsxFile() throws Exception {
-		mockMvc.perform(multipart("/import-posts").file(new MockMultipartFile("file", "posts.csv", null, "a,b".getBytes())))
+		mockMvc.perform(multipart("/import-posts").file(new MockMultipartFile("file", "posts.csv", null, "a,b".getBytes())).with(csrf()))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.detail").value("Only .xlsx files are supported"));
 	}

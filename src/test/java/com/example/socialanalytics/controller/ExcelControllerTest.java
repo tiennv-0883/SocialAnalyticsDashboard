@@ -14,6 +14,7 @@ import java.util.List;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.ActiveProfiles;
@@ -25,6 +26,7 @@ import com.example.socialanalytics.excel.ExcelProcessingException;
 import com.example.socialanalytics.service.PostExcelService;
 
 @WebMvcTest(ExcelController.class)
+@AutoConfigureMockMvc(addFilters = false)
 @ActiveProfiles("test")
 class ExcelControllerTest {
 

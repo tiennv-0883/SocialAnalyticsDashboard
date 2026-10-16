@@ -1,5 +1,7 @@
 package com.example.socialanalytics.entity;
 
+import java.time.Instant;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -36,5 +38,8 @@ public class User extends BaseEntity {
 
 	@Column(name = "provider_user_id", nullable = false, length = 100)
 	private String providerUserId;
+
+	@Column(name = "last_login_at")
+	private Instant lastLoginAt;
 
 }

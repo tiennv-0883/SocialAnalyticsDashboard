@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Dashboard · Social Analytics</title>
+	<link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+<div class="wrap">
+	<header class="top">
+		<div>
+			<h1>Social Analytics Dashboard</h1>
+			<div class="muted">
+				Xin chào, <b th:text="${name}">User</b>
+				<span th:if="${username != null and username != name}" th:text="'(@' + ${username} + ')'"></span>
+				· đăng nhập qua <span th:text="${provider}">FACEBOOK</span>
+				<span th:if="${email}" th:text="'· ' + ${email}"></span>
+			</div>
+			<div class="muted" th:if="${lastLoginAt}">
+				Lần đăng nhập gần nhất: <span th:text="${#temporals.format(lastLoginAt, 'yyyy-MM-dd HH:mm:ss', 'Asia/Ho_Chi_Minh')}"></span>
+			</div>
+		</div>
+		<form th:action="@{/logout}" method="post">
+			<button class="btn" type="submit">Đăng xuất</button>
+		</form>
+	</header>
+
+	<div class="card">
+		<h2>Tổng quan</h2>
+		<div class="stats">
+			<div class="stat"><b th:text="${postCount}">0</b><span class="muted">Bài viết</span></div>
+			<div class="stat"><b th:text="${metricCount}">0</b><span class="muted">Snapshot metric</span></div>
+		</div>
+	</div>
+
+	<div class="card">
+		<h2>Import bài viết từ Excel</h2>
+		<div class="alert ok" th:if="${importResult}">
+			Đã import <b th:text="${importResult.imported}"></b>/<span th:text="${importResult.totalRows}"></span> dòng,
+			lỗi <b th:text="${importResult.failed}"></b> dòng.
+		</div>
+		<table th:if="${importResult != null and !importResult.errors.isEmpty()}" style="margin-bottom:12px">
+			<tr><th>Dòng</th><th>Lỗi</th></tr>
+			<tr th:each="error : ${importResult.errors}">
+				<td th:text="${error.row}"></td><td th:text="${error.message}"></td>
+			</tr>
+		</table>
+		<div class="alert err" th:if="${importError}" th:text="${importError}"></div>
+		<form class="row" th:action="@{/dashboard/import}" method="post" enctype="multipart/form-data">
+			<input type="file" name="file" accept=".xlsx" required>
+			<button class="btn primary" type="submit">Import</button>
+		</form>
+		<p class="muted">Cột: platform, externalId, url, title, content. File mẫu: docs/samples/posts-sample.xlsx</p>
+	</div>
+
+	<div class="card row">
+		<a class="btn" th:href="@{/export-report}">Tải báo cáo Excel</a>
+		<a class="btn" th:href="@{/swagger-ui.html}">Swagger UI</a>
+	</div>
+</div>
+</body>
+</html>

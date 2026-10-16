@@ -4,3 +4,12 @@
 spring.datasource.url=jdbc:mysql://localhost:3306/social_analytics?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
 spring.datasource.username=root
 spring.datasource.password=
+
+# ---------- OAuth2 Social Login (giai doan 3) ----------
+# Facebook: developers.facebook.com -> App settings -> Basic (App ID / App Secret)
+spring.security.oauth2.client.registration.facebook.client-id=
+spring.security.oauth2.client.registration.facebook.client-secret=
+# X (Twitter): developer.x.com -> App -> Keys and tokens -> OAuth 2.0 Client ID / Client Secret
+spring.security.oauth2.client.registration.twitter.client-id=
+spring.security.oauth2.client.registration.twitter.client-secret=
+
