@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
@@ -72,13 +73,24 @@ public class UpdateSocialMetricsJob {
 			log.info("{} ({}) skipped: previous run still in progress", JOB_NAME, trigger);
 			return Optional.empty();
 		}
-		JobRun run = start(trigger);
+		JobRun run = null;
 		try {
+			run = start(trigger);
 			return Optional.of(execute(run));
 		}
 		catch (RuntimeException ex) {
+			if (run == null) {
+				log.error("{} ({}) could not start", JOB_NAME, trigger, ex);
+				throw ex;
+			}
 			log.error("[job run {}] {} failed", run.getId(), JOB_NAME, ex);
-			return Optional.of(finish(run, JobRun.Status.FAILED, truncate(ex.toString())));
+			try {
+				return Optional.of(finish(run, JobRun.Status.FAILED, truncate(ex.toString())));
+			}
+			catch (RuntimeException finishEx) {
+				ex.addSuppressed(finishEx);
+				throw ex;
+			}
 		}
 		finally {
 			running.set(false);
@@ -90,6 +102,13 @@ public class UpdateSocialMetricsJob {
 			.stream()
 			.collect(Collectors.groupingBy(IdAndPlatform::getPlatform,
 					Collectors.mapping(IdAndPlatform::getId, Collectors.toList())));
+		Set<SocialPlatform> supported = worker.supportedPlatforms();
+		postIdsByPlatform.forEach((platform, ids) -> {
+			if (!supported.contains(platform)) {
+				log.warn("[job run {}] no API client for {}: {} posts skipped", run.getId(), platform, ids.size());
+			}
+		});
+		postIdsByPlatform.keySet().retainAll(supported);
 		run.setTotalItems(postIdsByPlatform.values().stream().mapToInt(List::size).sum());
 		log.info("[job run {}] {} started ({}): {} posts {}", run.getId(), JOB_NAME, run.getTrigger(),
 				run.getTotalItems(), postIdsByPlatform.entrySet()

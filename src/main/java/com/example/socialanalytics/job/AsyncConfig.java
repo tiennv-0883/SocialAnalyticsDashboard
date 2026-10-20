@@ -1,11 +1,9 @@
 package com.example.socialanalytics.job;
 
 import java.lang.reflect.Method;
-import java.time.Duration;
 import java.util.concurrent.ThreadPoolExecutor;
 
 import org.springframework.aop.interceptor.AsyncUncaughtExceptionHandler;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -14,15 +12,13 @@ import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
-import com.example.socialanalytics.entity.SocialPlatform;
-
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Configuration
 @EnableAsync
 @EnableScheduling
-@EnableConfigurationProperties(JobProperties.class)
+@EnableConfigurationProperties({ JobProperties.class, RetentionProperties.class })
 public class AsyncConfig implements AsyncConfigurer {
 
 	public static final String METRICS_EXECUTOR = "metricsTaskExecutor";
@@ -38,18 +34,6 @@ public class AsyncConfig implements AsyncConfigurer {
 		executor.setWaitForTasksToCompleteOnShutdown(true);
 		executor.setAwaitTerminationSeconds(30);
 		return executor;
-	}
-
-	@Bean
-	public SocialApiClient facebookApiClient(@Value("${app.social-api.mock.latency-ms:0}") long latencyMs,
-			@Value("${app.social-api.mock.failure-rate:0}") double failureRate) {
-		return new MockSocialApiClient(SocialPlatform.FACEBOOK, Duration.ofMillis(latencyMs), failureRate);
-	}
-
-	@Bean
-	public SocialApiClient twitterApiClient(@Value("${app.social-api.mock.latency-ms:0}") long latencyMs,
-			@Value("${app.social-api.mock.failure-rate:0}") double failureRate) {
-		return new MockSocialApiClient(SocialPlatform.TWITTER, Duration.ofMillis(latencyMs), failureRate);
 	}
 
 	@Override

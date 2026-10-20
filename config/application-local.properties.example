@@ -13,3 +13,4 @@ spring.security.oauth2.client.registration.facebook.client-secret=
 spring.security.oauth2.client.registration.twitter.client-id=
 spring.security.oauth2.client.registration.twitter.client-secret=
 
+app.social-api.mock.enabled=true

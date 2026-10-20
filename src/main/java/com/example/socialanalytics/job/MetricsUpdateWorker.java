@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
 import org.springframework.scheduling.annotation.Async;
@@ -33,6 +34,10 @@ public class MetricsUpdateWorker {
 		clients.forEach(client -> this.clients.put(client.platform(), client));
 		this.postRepository = postRepository;
 		this.metricRepository = metricRepository;
+	}
+
+	public Set<SocialPlatform> supportedPlatforms() {
+		return clients.keySet();
 	}
 
 	@Async(AsyncConfig.METRICS_EXECUTOR)
