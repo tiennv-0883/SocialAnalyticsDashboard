@@ -20,11 +20,13 @@ import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.scheduling.TaskScheduler;
 
 import com.example.socialanalytics.entity.JobRun;
 import com.example.socialanalytics.entity.SocialPlatform;
+import com.example.socialanalytics.realtime.MetricsUpdatedEvent;
 import com.example.socialanalytics.repository.JobRunRepository;
 import com.example.socialanalytics.repository.PostRepository;
 import com.example.socialanalytics.repository.PostRepository.IdAndPlatform;
@@ -37,8 +39,10 @@ class UpdateSocialMetricsJobTest {
 
 	private final MetricsUpdateWorker worker = mock(MetricsUpdateWorker.class);
 
+	private final ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
+
 	private final UpdateSocialMetricsJob job = new UpdateSocialMetricsJob(postRepository, jobRunRepository, worker,
-			mock(TaskScheduler.class), new JobProperties("-", 2, 1, 1, 1));
+			mock(TaskScheduler.class), new JobProperties("-", 2, 1, 1, 1), eventPublisher);
 
 	@BeforeEach
 	void saveAssignsId() {
@@ -68,6 +72,8 @@ class UpdateSocialMetricsJobTest {
 		verify(worker).updateChunk(1L, SocialPlatform.FACEBOOK, List.of(1L, 2L));
 		verify(worker).updateChunk(1L, SocialPlatform.FACEBOOK, List.of(3L));
 		verify(worker).updateChunk(1L, SocialPlatform.TWITTER, List.of(4L));
+		verify(eventPublisher).publishEvent(new MetricsUpdatedEvent(1L, JobRun.Trigger.MANUAL, JobRun.Status.SUCCESS, 4, 0,
+				run.getFinishedAt()));
 	}
 
 	@Test
@@ -91,6 +97,7 @@ class UpdateSocialMetricsJobTest {
 		assertThat(run.getStatus()).isEqualTo(JobRun.Status.FAILED);
 		assertThat(run.getMessage()).contains("db down");
 		assertThat(job.isRunning()).isFalse();
+		verify(eventPublisher).publishEvent(MetricsUpdatedEvent.of(run));
 	}
 
 	@Test

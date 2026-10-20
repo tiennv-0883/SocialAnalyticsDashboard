@@ -3,6 +3,7 @@ package com.example.socialanalytics.messaging;
 import java.util.EnumMap;
 import java.util.Map;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jms.annotation.JmsListener;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -11,6 +12,7 @@ import org.springframework.util.StringUtils;
 import com.example.socialanalytics.entity.ImportLog;
 import com.example.socialanalytics.entity.PlatformStats;
 import com.example.socialanalytics.entity.SocialPlatform;
+import com.example.socialanalytics.realtime.ImportStatsUpdatedEvent;
 import com.example.socialanalytics.repository.ImportLogRepository;
 import com.example.socialanalytics.repository.PlatformStatsRepository;
 import com.example.socialanalytics.repository.PostRepository;
@@ -28,6 +30,8 @@ public class ImportStatsListener {
 	private final PlatformStatsRepository statsRepository;
 
 	private final PostRepository postRepository;
+
+	private final ApplicationEventPublisher eventPublisher;
 
 	@JmsListener(destination = Queues.IMPORT_COMPLETED)
 	@Transactional
@@ -68,6 +72,8 @@ public class ImportStatsListener {
 		}
 		log.info("Processed {} importId={}: stats updated {}", ImportCompletedEvent.TYPE, event.importId(),
 				postCounts);
+		eventPublisher.publishEvent(new ImportStatsUpdatedEvent(event.importId(), event.fileName(), event.imported(),
+				event.failed(), event.occurredAt()));
 	}
 
 	private static void validate(ImportCompletedEvent event) {

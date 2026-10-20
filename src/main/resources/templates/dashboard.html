@@ -1,109 +1,250 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="vi" xmlns:th="http://www.thymeleaf.org">
-<head>
-	<meta charset="UTF-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<title>Dashboard · Social Analytics</title>
-	<link rel="stylesheet" th:href="@{/css/app.css}">
-</head>
-<body>
-<div class="wrap">
-	<header class="top">
-		<div>
-			<h1>Social Analytics Dashboard</h1>
-			<div class="muted">
-				Xin chào, <b th:text="${name}">User</b>
-				<span th:if="${username != null and username != name}" th:text="'(@' + ${username} + ')'"></span>
-				· đăng nhập qua <span th:text="${provider}">FACEBOOK</span>
-				<span th:if="${email}" th:text="'· ' + ${email}"></span>
-			</div>
-			<div class="muted" th:if="${lastLoginAt}">
-				Lần đăng nhập gần nhất: <span th:text="${#temporals.format(lastLoginAt, 'yyyy-MM-dd HH:mm:ss', 'Asia/Ho_Chi_Minh')}"></span>
-			</div>
-		</div>
-		<form th:action="@{/logout}" method="post">
-			<button class="btn" type="submit">Đăng xuất</button>
-		</form>
-	</header>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Dashboard · Social Analytics</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}" />
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="top">
+        <div>
+          <h1>Social Analytics Dashboard</h1>
+          <div class="muted">
+            Xin chào, <b th:text="${name}">User</b>
+            <span
+              th:if="${username != null and username != name}"
+              th:text="'(@' + ${username} + ')'"
+            ></span>
+            · đăng nhập qua <span th:text="${provider}">FACEBOOK</span>
+            <span th:if="${email}" th:text="'· ' + ${email}"></span>
+          </div>
+          <div class="muted" th:if="${lastLoginAt}">
+            Lần đăng nhập gần nhất:
+            <span
+              th:text="${#temporals.format(lastLoginAt, 'yyyy-MM-dd HH:mm:ss', 'Asia/Ho_Chi_Minh')}"
+            ></span>
+          </div>
+        </div>
+        <form th:action="@{/logout}" method="post">
+          <button class="btn" type="submit">Đăng xuất</button>
+        </form>
+      </header>
 
-	<div class="card">
-		<h2>Tổng quan</h2>
-		<div class="stats">
-			<div class="stat"><b th:text="${postCount}">0</b><span class="muted">Bài viết</span></div>
-			<div class="stat"><b th:text="${metricCount}">0</b><span class="muted">Snapshot metric</span></div>
-		</div>
-	</div>
+      <div class="card">
+        <h2>Tổng quan</h2>
+        <div class="stats">
+          <div class="stat">
+            <b th:text="${postCount}">0</b><span class="muted">Bài viết</span>
+          </div>
+          <div class="stat">
+            <b th:text="${metricCount}">0</b
+            ><span class="muted">Snapshot metric</span>
+          </div>
+        </div>
+      </div>
 
-	<div class="card">
-		<h2>Cập nhật metrics (background job)</h2>
-		<div class="alert ok" th:if="${jobMessage}" th:text="${jobMessage}"></div>
-		<div class="alert err" th:if="${jobError}" th:text="${jobError}"></div>
-		<p>
-			<b>Last updated time:</b>
-			<span th:if="${lastUpdatedAt}" th:text="${#temporals.format(lastUpdatedAt, 'yyyy-MM-dd HH:mm:ss', 'Asia/Ho_Chi_Minh')}"></span>
-			<span th:unless="${lastUpdatedAt}" class="muted">chưa có</span>
-			<span th:if="${jobRunning}" class="muted">· đang chạy...</span>
-		</p>
-		<p class="muted" th:if="${lastRun}">
-			Lần chạy gần nhất: <span th:text="${lastRun.status}"></span> (<span th:text="${lastRun.trigger}"></span>)
-			· cập nhật <span th:text="${lastRun.updatedItems}"></span>/<span th:text="${lastRun.totalItems}"></span> bài,
-			lỗi <span th:text="${lastRun.failedItems}"></span>
-			<span th:if="${lastRun.durationMs != null}" th:text="'· ' + ${lastRun.durationMs} + ' ms'"></span>
-			<br><span th:if="${lastRun.message}" th:text="${lastRun.message}"></span>
-		</p>
-		<form th:action="@{/dashboard/jobs/update-metrics}" method="post">
-			<button class="btn primary" type="submit" th:disabled="${jobRunning}">Chạy cập nhật ngay</button>
-		</form>
-		<p class="muted">Tự động chạy mỗi giờ (job <code>updateSocialMetricsJob</code>, dữ liệu mock FB/X).</p>
-	</div>
+      <div class="card viz" id="charts">
+        <div class="row" style="justify-content: space-between">
+          <h2 style="margin: 0">Biểu đồ tương tác</h2>
+          <span class="live" id="liveStatus"
+            ><span class="dot"></span
+            ><span>Realtime: đang kết nối...</span></span
+          >
+        </div>
+        <div class="filters" style="margin-top: 12px">
+          <label
+            >Nền tảng
+            <select id="platformFilter">
+              <option value="">Tất cả</option>
+              <option value="FACEBOOK">Facebook</option>
+              <option value="TWITTER">X (Twitter)</option>
+            </select>
+          </label>
+          <label
+            >Khoảng thời gian
+            <select id="daysFilter">
+              <option value="7">7 ngày</option>
+              <option value="14" selected>14 ngày</option>
+              <option value="30">30 ngày</option>
+            </select>
+          </label>
+          <span class="muted" id="chartUpdated"></span>
+        </div>
+        <div class="chart-title">
+          Lượt thích, chia sẻ, bình luận (tổng theo ngày)
+        </div>
+        <div class="chart-box">
+          <canvas
+            id="engagementChart"
+            aria-label="Biểu đồ lượt thích, chia sẻ, bình luận theo ngày"
+            role="img"
+          ></canvas>
+        </div>
+        <div class="chart-title">Followers (tổng theo ngày)</div>
+        <div class="chart-box" style="height: 200px">
+          <canvas
+            id="followersChart"
+            aria-label="Biểu đồ followers theo ngày"
+            role="img"
+          ></canvas>
+        </div>
+        <details>
+          <summary>Bảng số liệu</summary>
+          <div class="table-scroll">
+            <table id="chartTable" style="margin-top: 8px">
+              <thead>
+                <tr>
+                  <th>Ngày</th>
+                  <th>Likes</th>
+                  <th>Shares</th>
+                  <th>Comments</th>
+                  <th>Followers</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </details>
+      </div>
 
-	<div class="card" th:if="${!platformStats.isEmpty() or !recentImports.isEmpty()}">
-		<h2>Thống kê tổng hợp (cập nhật qua JMS)</h2>
-		<table th:if="${!platformStats.isEmpty()}" style="margin-bottom:12px">
-			<tr><th>Nền tảng</th><th>Bài viết</th><th>Đã import</th><th>Số lần import</th><th>Import gần nhất</th></tr>
-			<tr th:each="stats : ${platformStats}">
-				<td th:text="${stats.platform}"></td>
-				<td th:text="${stats.postCount}"></td>
-				<td th:text="${stats.importedPosts}"></td>
-				<td th:text="${stats.importCount}"></td>
-				<td th:text="${stats.lastImportAt != null ? #temporals.format(stats.lastImportAt, 'yyyy-MM-dd HH:mm', 'Asia/Ho_Chi_Minh') : '-'}"></td>
-			</tr>
-		</table>
-		<table th:if="${!recentImports.isEmpty()}">
-			<tr><th>File</th><th>Thời điểm</th><th>Thành công</th><th>Lỗi</th></tr>
-			<tr th:each="imp : ${recentImports}">
-				<td th:text="${imp.fileName}"></td>
-				<td th:text="${#temporals.format(imp.importedAt, 'yyyy-MM-dd HH:mm:ss', 'Asia/Ho_Chi_Minh')}"></td>
-				<td th:text="${imp.imported}"></td>
-				<td th:text="${imp.failed}"></td>
-			</tr>
-		</table>
-	</div>
+      <div class="card">
+        <h2>Cập nhật metrics (background job)</h2>
+        <div
+          class="alert ok"
+          th:if="${jobMessage}"
+          th:text="${jobMessage}"
+        ></div>
+        <div class="alert err" th:if="${jobError}" th:text="${jobError}"></div>
+        <p>
+          <b>Last updated time:</b>
+          <span
+            th:if="${lastUpdatedAt}"
+            th:text="${#temporals.format(lastUpdatedAt, 'yyyy-MM-dd HH:mm:ss', 'Asia/Ho_Chi_Minh')}"
+          ></span>
+          <span th:unless="${lastUpdatedAt}" class="muted">chưa có</span>
+          <span th:if="${jobRunning}" class="muted">· đang chạy...</span>
+        </p>
+        <p class="muted" th:if="${lastRun}">
+          Lần chạy gần nhất: <span th:text="${lastRun.status}"></span> (<span
+            th:text="${lastRun.trigger}"
+          ></span
+          >) · cập nhật <span th:text="${lastRun.updatedItems}"></span>/<span
+            th:text="${lastRun.totalItems}"
+          ></span>
+          bài, lỗi <span th:text="${lastRun.failedItems}"></span>
+          <span
+            th:if="${lastRun.durationMs != null}"
+            th:text="'· ' + ${lastRun.durationMs} + ' ms'"
+          ></span>
+          <br /><span
+            th:if="${lastRun.message}"
+            th:text="${lastRun.message}"
+          ></span>
+        </p>
+        <form th:action="@{/dashboard/jobs/update-metrics}" method="post">
+          <button class="btn primary" type="submit" th:disabled="${jobRunning}">
+            Chạy cập nhật ngay
+          </button>
+        </form>
+        <p class="muted">
+          Tự động chạy mỗi giờ (job <code>updateSocialMetricsJob</code>, dữ liệu
+          mock FB/X).
+        </p>
+      </div>
 
-	<div class="card">
-		<h2>Import bài viết từ Excel</h2>
-		<div class="alert ok" th:if="${importResult}">
-			Đã import <b th:text="${importResult.imported}"></b>/<span th:text="${importResult.totalRows}"></span> dòng,
-			lỗi <b th:text="${importResult.failed}"></b> dòng.
-		</div>
-		<table th:if="${importResult != null and !importResult.errors.isEmpty()}" style="margin-bottom:12px">
-			<tr><th>Dòng</th><th>Lỗi</th></tr>
-			<tr th:each="error : ${importResult.errors}">
-				<td th:text="${error.row}"></td><td th:text="${error.message}"></td>
-			</tr>
-		</table>
-		<div class="alert err" th:if="${importError}" th:text="${importError}"></div>
-		<form class="row" th:action="@{/dashboard/import}" method="post" enctype="multipart/form-data">
-			<input type="file" name="file" accept=".xlsx" required>
-			<button class="btn primary" type="submit">Import</button>
-		</form>
-		<p class="muted">Cột: platform, externalId, url, title, content. File mẫu: docs/samples/posts-sample.xlsx</p>
-	</div>
+      <div
+        class="card"
+        th:if="${!platformStats.isEmpty() or !recentImports.isEmpty()}"
+      >
+        <h2>Thống kê tổng hợp (cập nhật qua JMS)</h2>
+        <table th:if="${!platformStats.isEmpty()}" style="margin-bottom: 12px">
+          <tr>
+            <th>Nền tảng</th>
+            <th>Bài viết</th>
+            <th>Đã import</th>
+            <th>Số lần import</th>
+            <th>Import gần nhất</th>
+          </tr>
+          <tr th:each="stats : ${platformStats}">
+            <td th:text="${stats.platform}"></td>
+            <td th:text="${stats.postCount}"></td>
+            <td th:text="${stats.importedPosts}"></td>
+            <td th:text="${stats.importCount}"></td>
+            <td
+              th:text="${stats.lastImportAt != null ? #temporals.format(stats.lastImportAt, 'yyyy-MM-dd HH:mm', 'Asia/Ho_Chi_Minh') : '-'}"
+            ></td>
+          </tr>
+        </table>
+        <table th:if="${!recentImports.isEmpty()}">
+          <tr>
+            <th>File</th>
+            <th>Thời điểm</th>
+            <th>Thành công</th>
+            <th>Lỗi</th>
+          </tr>
+          <tr th:each="imp : ${recentImports}">
+            <td th:text="${imp.fileName}"></td>
+            <td
+              th:text="${#temporals.format(imp.importedAt, 'yyyy-MM-dd HH:mm:ss', 'Asia/Ho_Chi_Minh')}"
+            ></td>
+            <td th:text="${imp.imported}"></td>
+            <td th:text="${imp.failed}"></td>
+          </tr>
+        </table>
+      </div>
 
-	<div class="card row">
-		<a class="btn" th:href="@{/export-report}">Tải báo cáo Excel</a>
-		<a class="btn" th:href="@{/swagger-ui.html}">Swagger UI</a>
-	</div>
-</div>
-</body>
+      <div class="card">
+        <h2>Import bài viết từ Excel</h2>
+        <div class="alert ok" th:if="${importResult}">
+          Đã import <b th:text="${importResult.imported}"></b>/<span
+            th:text="${importResult.totalRows}"
+          ></span>
+          dòng, lỗi <b th:text="${importResult.failed}"></b> dòng.
+        </div>
+        <table
+          th:if="${importResult != null and !importResult.errors.isEmpty()}"
+          style="margin-bottom: 12px"
+        >
+          <tr>
+            <th>Dòng</th>
+            <th>Lỗi</th>
+          </tr>
+          <tr th:each="error : ${importResult.errors}">
+            <td th:text="${error.row}"></td>
+            <td th:text="${error.message}"></td>
+          </tr>
+        </table>
+        <div
+          class="alert err"
+          th:if="${importError}"
+          th:text="${importError}"
+        ></div>
+        <form
+          class="row"
+          th:action="@{/dashboard/import}"
+          method="post"
+          enctype="multipart/form-data"
+        >
+          <input type="file" name="file" accept=".xlsx" required />
+          <button class="btn primary" type="submit">Import</button>
+        </form>
+        <p class="muted">
+          Cột: platform, externalId, url, title, content. File mẫu:
+          docs/samples/posts-sample.xlsx
+        </p>
+      </div>
+
+      <div class="card row">
+        <a class="btn" th:href="@{/export-report}">Tải báo cáo Excel</a>
+        <a class="btn" th:href="@{/swagger-ui.html}">Swagger UI</a>
+      </div>
+    </div>
+    <div class="toasts" id="toasts" aria-live="polite"></div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.6.1/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@7.0.0/bundles/stomp.umd.min.js"></script>
+    <script th:src="@{/js/dashboard-chart.js}"></script>
+  </body>
 </html>

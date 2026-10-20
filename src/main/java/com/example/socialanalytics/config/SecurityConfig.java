@@ -24,13 +24,14 @@ public class SecurityConfig {
 	private static final RequestMatcher API = new OrRequestMatcher(
 			PathPatternRequestMatcher.pathPattern("/posts/**"), PathPatternRequestMatcher.pathPattern("/metrics/**"),
 			PathPatternRequestMatcher.pathPattern("/import-posts"),
-			PathPatternRequestMatcher.pathPattern("/export-report"), PathPatternRequestMatcher.pathPattern("/jobs/**"));
+			PathPatternRequestMatcher.pathPattern("/export-report"), PathPatternRequestMatcher.pathPattern("/jobs/**"),
+			PathPatternRequestMatcher.pathPattern("/chart-data"), PathPatternRequestMatcher.pathPattern("/ws/**"));
 
 	@Bean
 	public SecurityFilterChain securityFilterChain(HttpSecurity http, SocialOAuth2UserService userService)
 			throws Exception {
 		http.authorizeHttpRequests(auth -> auth
-			.requestMatchers("/login", "/error", "/favicon.ico", "/css/**", "/swagger-ui.html", "/swagger-ui/**",
+			.requestMatchers("/login", "/error", "/favicon.ico", "/css/**", "/js/**", "/swagger-ui.html", "/swagger-ui/**",
 					"/v3/api-docs/**")
 			.permitAll()
 			.anyRequest()
@@ -40,7 +41,7 @@ public class SecurityConfig {
 				.failureHandler(new LoggingAuthenticationFailureHandler())
 				.userInfoEndpoint(userInfo -> userInfo.userService(userService)))
 			.logout(logout -> logout.logoutSuccessUrl("/login?logout"))
-			.csrf(csrf -> csrf.spa())
+			.csrf(csrf -> csrf.spa().ignoringRequestMatchers("/ws/**"))
 			.addFilterAfter(new CsrfCookieFilter(), CsrfFilter.class)
 			.exceptionHandling(ex -> ex.authenticationEntryPoint(authenticationEntryPoint()));
 		return http.build();
