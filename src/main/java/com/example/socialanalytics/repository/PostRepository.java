@@ -27,4 +27,15 @@ public interface PostRepository extends JpaRepository<Post, Long> {
 	@Query("select p.id as id, p.platform as platform from Post p order by p.id")
 	List<IdAndPlatform> findAllIdsAndPlatforms();
 
+	interface PlatformCount {
+
+		SocialPlatform getPlatform();
+
+		long getTotal();
+
+	}
+
+	@Query("select p.platform as platform, count(p) as total from Post p group by p.platform")
+	List<PlatformCount> countByPlatform();
+
 }
