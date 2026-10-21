@@ -28,43 +28,41 @@ public interface SocialMetricRepository extends JpaRepository<SocialMetric, Long
 			""")
 	List<Long> findPurgeableIds(Instant cutoff, Pageable pageable);
 
-	interface ChartPoint {
-
-		Long getPostId();
-
-		SocialPlatform getPlatform();
-
-		Instant getCollectedAt();
-
-		long getLikes();
-
-		long getShares();
-
-		long getComments();
-
-		long getFollowers();
-
-	}
-
-	@Query("""
-			select m.post.id as postId, m.post.platform as platform, m.collectedAt as collectedAt, m.likes as likes,
-			m.shares as shares, m.comments as comments, m.followers as followers
-			from SocialMetric m
-			where m.collectedAt >= :from and (:platform is null or m.post.platform = :platform)
-			order by m.collectedAt, m.id
+	@Query(nativeQuery = true, value = """
+			WITH src AS (
+				SELECT m.id, m.post_id, p.platform, m.collected_at, m.likes, m.shares, m.comments, m.followers,
+					FLOOR(TIMESTAMPDIFF(SECOND, :from, m.collected_at) / 86400) AS bucket_day
+				FROM social_metrics m JOIN posts p ON p.id = m.post_id
+				WHERE m.collected_at >= :from AND m.collected_at < :to AND (:platform = '' OR p.platform = :platform)
+				UNION ALL
+				SELECT m.id, m.post_id, p.platform, m.collected_at, m.likes, m.shares, m.comments, m.followers,
+					-1 AS bucket_day
+				FROM social_metrics m JOIN posts p ON p.id = m.post_id
+				WHERE (:platform = '' OR p.platform = :platform)
+					AND m.collected_at = (SELECT MAX(m2.collected_at) FROM social_metrics m2
+						WHERE m2.post_id = m.post_id AND m2.collected_at < :from)
+			),
+			ranked AS (
+				SELECT src.*, ROW_NUMBER() OVER (PARTITION BY post_id, bucket_day ORDER BY collected_at DESC, id DESC) AS rn
+				FROM src
+			),
+			deltas AS (
+				SELECT bucket_day, platform,
+					likes - COALESCE(LAG(likes) OVER w, 0) AS d_likes,
+					shares - COALESCE(LAG(shares) OVER w, 0) AS d_shares,
+					comments - COALESCE(LAG(comments) OVER w, 0) AS d_comments,
+					followers - COALESCE(LAG(followers) OVER w, 0) AS d_followers,
+					CASE WHEN LAG(likes) OVER w IS NULL THEN 1 ELSE 0 END AS new_posts
+				FROM ranked
+				WHERE rn = 1
+				WINDOW w AS (PARTITION BY post_id ORDER BY bucket_day)
+			)
+			SELECT bucket_day, platform, SUM(d_likes), SUM(d_shares), SUM(d_comments), SUM(d_followers), SUM(new_posts)
+			FROM deltas
+			GROUP BY bucket_day, platform
+			ORDER BY bucket_day, platform
 			""")
-	List<ChartPoint> findChartPointsSince(Instant from, SocialPlatform platform);
-
-	@Query("""
-			select m.post.id as postId, m.post.platform as platform, m.collectedAt as collectedAt, m.likes as likes,
-			m.shares as shares, m.comments as comments, m.followers as followers
-			from SocialMetric m
-			where (:platform is null or m.post.platform = :platform)
-			and m.collectedAt = (select max(m2.collectedAt) from SocialMetric m2
-				where m2.post = m.post and m2.collectedAt < :before)
-			order by m.collectedAt, m.id
-			""")
-	List<ChartPoint> findLatestChartPointsBefore(Instant before, SocialPlatform platform);
+	List<Object[]> dailyDeltasByPlatform(Instant from, Instant to, String platform);
 
 	@Query("""
 			select m from SocialMetric m join fetch m.post

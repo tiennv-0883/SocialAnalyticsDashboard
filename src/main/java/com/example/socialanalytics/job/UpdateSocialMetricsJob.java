@@ -146,7 +146,13 @@ public class UpdateSocialMetricsJob {
 	}
 
 	private JobRun published(JobRun run) {
-		eventPublisher.publishEvent(MetricsUpdatedEvent.of(run));
+		try {
+			eventPublisher.publishEvent(MetricsUpdatedEvent.of(run));
+		}
+		catch (RuntimeException ex) {
+			log.warn("[job run {}] could not publish {}: {}", run.getId(), MetricsUpdatedEvent.class.getSimpleName(),
+					ex.getMessage());
+		}
 		return run;
 	}
 

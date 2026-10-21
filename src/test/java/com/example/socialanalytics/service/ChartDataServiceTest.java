@@ -65,6 +65,28 @@ class ChartDataServiceTest {
 	}
 
 	@Test
+	void usesLastSnapshotOfDayEvenWhenValuesDecrease() {
+		Post decreasing = post(SocialPlatform.TWITTER, "tw-unlike");
+		metric(decreasing, today, 1, 300, 10);
+		metric(decreasing, today, 2, 250, 9);
+		em.flush();
+
+		ChartData data = service.chartData(SocialPlatform.TWITTER, 1);
+
+		assertThat(data.series().get("likes")).containsExactly(270L);
+		assertThat(data.byPlatform().get(SocialPlatform.TWITTER).posts()).isEqualTo(2);
+		assertThat(data.byPlatform().get(SocialPlatform.TWITTER).followers()).isEqualTo(59);
+	}
+
+	@Test
+	void postWithOnlyOldSnapshotsStillCountsAcrossTheRange() {
+		ChartData data = service.chartData(SocialPlatform.FACEBOOK, 1);
+
+		assertThat(data.series().get("likes")).containsExactly(150L);
+		assertThat(data.byPlatform().get(SocialPlatform.FACEBOOK).posts()).isEqualTo(1);
+	}
+
+	@Test
 	void rejectsOutOfRangeDays() {
 		assertThatThrownBy(() -> service.chartData(null, 0)).isInstanceOf(IllegalArgumentException.class);
 		assertThatThrownBy(() -> service.chartData(null, ChartDataService.MAX_DAYS + 1))

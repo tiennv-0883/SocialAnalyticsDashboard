@@ -17,13 +17,14 @@ import org.springframework.transaction.annotation.Transactional;
 import com.example.socialanalytics.dto.ChartData;
 import com.example.socialanalytics.entity.SocialPlatform;
 import com.example.socialanalytics.repository.SocialMetricRepository;
-import com.example.socialanalytics.repository.SocialMetricRepository.ChartPoint;
 
 @Service
 @Transactional(readOnly = true)
 public class ChartDataService {
 
 	public static final int MAX_DAYS = 90;
+
+	private static final List<String> SERIES = List.of("likes", "shares", "comments", "followers");
 
 	private final SocialMetricRepository metricRepository;
 
@@ -38,50 +39,46 @@ public class ChartDataService {
 		if (days < 1 || days > MAX_DAYS) {
 			throw new IllegalArgumentException("days must be between 1 and " + MAX_DAYS);
 		}
-		LocalDate today = LocalDate.now(zone);
+		Instant now = Instant.now();
+		LocalDate today = LocalDate.ofInstant(now, zone);
 		LocalDate firstDay = today.minusDays(days - 1L);
 		Instant from = firstDay.atStartOfDay(zone).toInstant();
+		Instant to = from.plusSeconds(days * 86_400L);
 
-		Map<Long, ChartPoint> latestByPost = new HashMap<>();
-		metricRepository.findLatestChartPointsBefore(from, platform).forEach(point -> latestByPost.put(point.getPostId(), point));
-		List<ChartPoint> points = metricRepository.findChartPointsSince(from, platform);
+		Map<Integer, long[]> deltasByDay = new HashMap<>();
+		Map<SocialPlatform, long[]> totals = new EnumMap<>(SocialPlatform.class);
+		for (Object[] row : metricRepository.dailyDeltasByPlatform(from, to, platform == null ? "" : platform.name())) {
+			int dayIndex = Math.max(0, (int) number(row[0]));
+			long[] delta = { number(row[2]), number(row[3]), number(row[4]), number(row[5]), number(row[6]) };
+			add(deltasByDay.computeIfAbsent(dayIndex, key -> new long[5]), delta);
+			add(totals.computeIfAbsent(SocialPlatform.valueOf((String) row[1]), key -> new long[5]), delta);
+		}
 
 		List<String> labels = new ArrayList<>();
 		Map<String, List<Long>> series = new LinkedHashMap<>();
-		for (String name : List.of("likes", "shares", "comments", "followers")) {
-			series.put(name, new ArrayList<>());
-		}
-		int next = 0;
-		for (LocalDate day = firstDay; !day.isAfter(today); day = day.plusDays(1)) {
-			Instant endOfDay = day.plusDays(1).atStartOfDay(zone).toInstant();
-			while (next < points.size() && points.get(next).getCollectedAt().isBefore(endOfDay)) {
-				ChartPoint point = points.get(next++);
-				latestByPost.put(point.getPostId(), point);
+		SERIES.forEach(name -> series.put(name, new ArrayList<>()));
+		long[] running = new long[5];
+		for (int i = 0; i < days; i++) {
+			add(running, deltasByDay.getOrDefault(i, new long[5]));
+			labels.add(firstDay.plusDays(i).toString());
+			for (int s = 0; s < SERIES.size(); s++) {
+				series.get(SERIES.get(s)).add(running[s]);
 			}
-			labels.add(day.toString());
-			series.get("likes").add(latestByPost.values().stream().mapToLong(ChartPoint::getLikes).sum());
-			series.get("shares").add(latestByPost.values().stream().mapToLong(ChartPoint::getShares).sum());
-			series.get("comments").add(latestByPost.values().stream().mapToLong(ChartPoint::getComments).sum());
-			series.get("followers").add(latestByPost.values().stream().mapToLong(ChartPoint::getFollowers).sum());
 		}
-		while (next < points.size()) {
-			ChartPoint point = points.get(next++);
-			latestByPost.put(point.getPostId(), point);
-		}
-		return new ChartData(platform, days, zone.getId(), labels, series, totalsByPlatform(latestByPost),
-				Instant.now());
+		Map<SocialPlatform, ChartData.Totals> byPlatform = new EnumMap<>(SocialPlatform.class);
+		totals.forEach((key, value) -> byPlatform.put(key,
+				new ChartData.Totals((int) value[4], value[0], value[1], value[2], value[3])));
+		return new ChartData(platform, days, zone.getId(), labels, series, byPlatform, now);
 	}
 
-	private static Map<SocialPlatform, ChartData.Totals> totalsByPlatform(Map<Long, ChartPoint> latestByPost) {
-		Map<SocialPlatform, ChartData.Totals> totals = new EnumMap<>(SocialPlatform.class);
-		for (ChartPoint point : latestByPost.values()) {
-			ChartData.Totals current = totals.getOrDefault(point.getPlatform(), new ChartData.Totals(0, 0, 0, 0, 0));
-			totals.put(point.getPlatform(),
-					new ChartData.Totals(current.posts() + 1, current.likes() + point.getLikes(),
-							current.shares() + point.getShares(), current.comments() + point.getComments(),
-							current.followers() + point.getFollowers()));
+	private static void add(long[] target, long[] delta) {
+		for (int i = 0; i < target.length; i++) {
+			target[i] += delta[i];
 		}
-		return totals;
+	}
+
+	private static long number(Object value) {
+		return value == null ? 0 : ((Number) value).longValue();
 	}
 
 }

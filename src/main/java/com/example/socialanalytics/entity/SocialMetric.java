@@ -20,7 +20,8 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @Entity
-@Table(name = "social_metrics", indexes = @Index(columnList = "post_id, collected_at"))
+@Table(name = "social_metrics", indexes = { @Index(columnList = "post_id, collected_at"),
+		@Index(name = "idx_social_metrics_collected_at", columnList = "collected_at") })
 public class SocialMetric extends BaseEntity {
 
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)

@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -74,6 +75,20 @@ class UpdateSocialMetricsJobTest {
 		verify(worker).updateChunk(1L, SocialPlatform.TWITTER, List.of(4L));
 		verify(eventPublisher).publishEvent(new MetricsUpdatedEvent(1L, JobRun.Trigger.MANUAL, JobRun.Status.SUCCESS, 4, 0,
 				run.getFinishedAt()));
+	}
+
+	@Test
+	void broadcastFailureDoesNotChangeFinishedRun() {
+		givenPosts(post(1, SocialPlatform.FACEBOOK));
+		when(worker.updateChunk(anyLong(), any(), any())).thenReturn(done(1, List.of()));
+		doThrow(new IllegalStateException("broker down")).when(eventPublisher).publishEvent(any(Object.class));
+
+		JobRun run = job.run(JobRun.Trigger.MANUAL).orElseThrow();
+
+		assertThat(run.getStatus()).isEqualTo(JobRun.Status.SUCCESS);
+		assertThat(run.getMessage()).isNull();
+		verify(jobRunRepository, times(2)).save(any(JobRun.class));
+		assertThat(job.isRunning()).isFalse();
 	}
 
 	@Test

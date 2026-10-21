@@ -162,6 +162,30 @@
       : "Realtime: mất kết nối, đang thử lại...";
   }
 
+  const RELOAD_DELAY_MS = 1500;
+  const RELOAD_JITTER_MS = 3000;
+  let reloadTimer = null;
+  let reloadWhenVisible = false;
+
+  function scheduleReload() {
+    if (document.hidden) {
+      reloadWhenVisible = true;
+      return;
+    }
+    clearTimeout(reloadTimer);
+    reloadTimer = setTimeout(
+      loadChart,
+      RELOAD_DELAY_MS + Math.random() * RELOAD_JITTER_MS,
+    );
+  }
+
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && reloadWhenVisible) {
+      reloadWhenVisible = false;
+      scheduleReload();
+    }
+  });
+
   const stomp = new StompJs.Client({
     webSocketFactory: () => new SockJS("/ws"),
     reconnectDelay: 5000,
@@ -172,7 +196,7 @@
     stomp.subscribe("/topic/metrics", (frame) => {
       const notification = JSON.parse(frame.body);
       showToast(notification.message);
-      loadChart();
+      scheduleReload();
     });
   };
   stomp.onWebSocketClose = () => setLive(false);
