@@ -11,6 +11,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -18,6 +19,7 @@ import org.springframework.stereotype.Component;
 
 import com.example.socialanalytics.entity.JobRun;
 import com.example.socialanalytics.entity.SocialPlatform;
+import com.example.socialanalytics.realtime.MetricsUpdatedEvent;
 import com.example.socialanalytics.repository.JobRunRepository;
 import com.example.socialanalytics.repository.PostRepository;
 import com.example.socialanalytics.repository.PostRepository.IdAndPlatform;
@@ -42,13 +44,17 @@ public class UpdateSocialMetricsJob {
 
 	private final JobProperties properties;
 
+	private final ApplicationEventPublisher eventPublisher;
+
 	public UpdateSocialMetricsJob(PostRepository postRepository, JobRunRepository jobRunRepository,
-			MetricsUpdateWorker worker, TaskScheduler taskScheduler, JobProperties properties) {
+			MetricsUpdateWorker worker, TaskScheduler taskScheduler, JobProperties properties,
+			ApplicationEventPublisher eventPublisher) {
 		this.postRepository = postRepository;
 		this.jobRunRepository = jobRunRepository;
 		this.worker = worker;
 		this.taskScheduler = taskScheduler;
 		this.properties = properties;
+		this.eventPublisher = eventPublisher;
 	}
 
 	@Scheduled(cron = "${app.jobs.update-metrics.cron}")
@@ -76,7 +82,7 @@ public class UpdateSocialMetricsJob {
 		JobRun run = null;
 		try {
 			run = start(trigger);
-			return Optional.of(execute(run));
+			return Optional.of(published(execute(run)));
 		}
 		catch (RuntimeException ex) {
 			if (run == null) {
@@ -85,7 +91,7 @@ public class UpdateSocialMetricsJob {
 			}
 			log.error("[job run {}] {} failed", run.getId(), JOB_NAME, ex);
 			try {
-				return Optional.of(finish(run, JobRun.Status.FAILED, truncate(ex.toString())));
+				return Optional.of(published(finish(run, JobRun.Status.FAILED, truncate(ex.toString()))));
 			}
 			catch (RuntimeException finishEx) {
 				ex.addSuppressed(finishEx);
@@ -137,6 +143,17 @@ public class UpdateSocialMetricsJob {
 		log.info("[job run {}] {} finished in {}ms: {} ({} updated, {} failed, {} tasks)", run.getId(), JOB_NAME,
 				finished.getDurationMs(), status, run.getUpdatedItems(), run.getFailedItems(), futures.size());
 		return finished;
+	}
+
+	private JobRun published(JobRun run) {
+		try {
+			eventPublisher.publishEvent(MetricsUpdatedEvent.of(run));
+		}
+		catch (RuntimeException ex) {
+			log.warn("[job run {}] could not publish {}: {}", run.getId(), MetricsUpdatedEvent.class.getSimpleName(),
+					ex.getMessage());
+		}
+		return run;
 	}
 
 	private JobRun start(JobRun.Trigger trigger) {
