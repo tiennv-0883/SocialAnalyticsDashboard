@@ -21,7 +21,9 @@ import com.example.socialanalytics.repository.PlatformStatsRepository;
 import com.example.socialanalytics.repository.PostRepository;
 import com.example.socialanalytics.repository.SocialMetricRepository;
 import com.example.socialanalytics.repository.UserRepository;
+import com.example.socialanalytics.service.EntityExportService;
 import com.example.socialanalytics.service.PostExcelService;
+import com.example.socialanalytics.soap.ExchangeRateService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -44,6 +46,10 @@ public class DashboardController {
 	private final PlatformStatsRepository platformStatsRepository;
 
 	private final ImportLogRepository importLogRepository;
+
+	private final ExchangeRateService exchangeRateService;
+
+	private final EntityExportService entityExportService;
 
 	@GetMapping("/")
 	public String home() {
@@ -70,6 +76,8 @@ public class DashboardController {
 		model.addAttribute("jobRunning", updateSocialMetricsJob.isRunning());
 		model.addAttribute("platformStats", platformStatsRepository.findAllByOrderByPlatform());
 		model.addAttribute("recentImports", importLogRepository.findTop5ByOrderByImportedAtDesc());
+		exchangeRateService.findRate("USD", "VND").ifPresent(rate -> model.addAttribute("usdVnd", rate));
+		model.addAttribute("exportEntities", entityExportService.exportableEntities());
 		return "dashboard";
 	}
 

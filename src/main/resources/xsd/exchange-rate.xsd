@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+		xmlns:tns="http://example.com/socialanalytics/exchange-rate"
+		targetNamespace="http://example.com/socialanalytics/exchange-rate"
+		elementFormDefault="qualified">
+
+	<xs:simpleType name="currencyCode">
+		<xs:restriction base="xs:string">
+			<xs:pattern value="[A-Z]{3}"/>
+		</xs:restriction>
+	</xs:simpleType>
+
+	<xs:element name="GetExchangeRateRequest">
+		<xs:complexType>
+			<xs:sequence>
+				<xs:element name="from" type="tns:currencyCode"/>
+				<xs:element name="to" type="tns:currencyCode"/>
+			</xs:sequence>
+		</xs:complexType>
+	</xs:element>
+
+	<xs:element name="GetExchangeRateResponse">
+		<xs:complexType>
+			<xs:sequence>
+				<xs:element name="from" type="tns:currencyCode"/>
+				<xs:element name="to" type="tns:currencyCode"/>
+				<xs:element name="rate" type="xs:decimal"/>
+				<xs:element name="date" type="xs:date"/>
+			</xs:sequence>
+		</xs:complexType>
+	</xs:element>
+
+</xs:schema>
