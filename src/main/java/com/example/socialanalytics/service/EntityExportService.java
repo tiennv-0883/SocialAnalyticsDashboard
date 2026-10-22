@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -34,7 +35,6 @@ public class EntityExportService {
 
 	public static final int PAGE_SIZE = 1_000;
 
-	public static final int MAX_ROWS = 100_000;
 
 	public record ExportFile(String fileName, byte[] content, int rows, boolean truncated) {
 	}
@@ -46,14 +46,18 @@ public class EntityExportService {
 
 	private final EntityManager entityManager;
 
+	private final int maxRows;
+
 	public EntityExportService(PostRepository posts, SocialMetricRepository metrics, JobRunRepository jobRuns,
-			ImportLogRepository importLogs, PlatformStatsRepository platformStats, EntityManager entityManager) {
+			ImportLogRepository importLogs, PlatformStatsRepository platformStats, EntityManager entityManager,
+			@Value("${app.export.max-rows:100000}") int maxRows) {
 		targets.put("posts", new Target<>(Post.class, posts));
 		targets.put("metrics", new Target<>(SocialMetric.class, metrics));
 		targets.put("job-runs", new Target<>(JobRun.class, jobRuns));
 		targets.put("import-logs", new Target<>(ImportLog.class, importLogs));
 		targets.put("platform-stats", new Target<>(PlatformStats.class, platformStats));
 		this.entityManager = entityManager;
+		this.maxRows = maxRows;
 	}
 
 	public Set<String> exportableEntities() {
@@ -76,12 +80,12 @@ public class EntityExportService {
 			int pageNumber = 0;
 			Page<T> page;
 			do {
-				page = target.repository().findAll(PageRequest.of(pageNumber++, PAGE_SIZE, Sort.by("id")));
+				page = target.repository().findAll(PageRequest.of(pageNumber++, PAGE_SIZE, Sort.by(Sort.Direction.DESC, "id")));
 				List<T> rows = page.getContent();
-				int room = MAX_ROWS - writer.rowCount();
+				int room = maxRows - writer.rowCount();
 				writer.append(rows.size() > room ? rows.subList(0, room) : rows);
 				entityManager.clear();
-				truncated = page.hasNext() && writer.rowCount() >= MAX_ROWS;
+				truncated = writer.rowCount() >= maxRows && (page.hasNext() || rows.size() > room);
 			}
 			while (page.hasNext() && !truncated);
 			byte[] content = writer.toBytes();

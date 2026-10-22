@@ -37,7 +37,7 @@ public class ExchangeRateClient {
 		String url = environment.getRequiredProperty("app.exchange-rate.url");
 		try {
 			GetExchangeRateResponse response = (GetExchangeRateResponse) webServiceTemplate
-				.marshalSendAndReceive(url, new GetExchangeRateRequest(from, to));
+				.marshalSendAndReceive(url, new GetExchangeRateRequest(Currencies.normalize(from), Currencies.normalize(to)));
 			log.debug("SOAP GetExchangeRate {}->{} = {}", response.getFrom(), response.getTo(), response.getRate());
 			return new ExchangeRate(response.getFrom(), response.getTo(), response.getRate(),
 					LocalDate.parse(response.getDate()), Instant.now());

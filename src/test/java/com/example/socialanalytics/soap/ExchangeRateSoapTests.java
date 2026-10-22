@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oauth2Login;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -19,6 +20,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -75,6 +77,18 @@ class ExchangeRateSoapTests {
 	}
 
 	@Test
+	void soapEndpointRejectsCallsFromOtherHosts() throws Exception {
+		mockMvc.perform(post("/soap").with(request -> {
+			request.setRemoteAddr("10.1.2.3");
+			return request;
+		}).contentType(MediaType.TEXT_XML).content("<x/>")).andExpect(status().isUnauthorized());
+		mockMvc.perform(get("/soap/exchangeRates.wsdl").with(oauth2Login()).with(request -> {
+			request.setRemoteAddr("192.168.1.20");
+			return request;
+		})).andExpect(status().isForbidden());
+	}
+
+	@Test
 	void restEndpointUsesSoapClient() throws Exception {
 		mockMvc.perform(get("/exchange-rate").with(oauth2Login()))
 			.andExpect(status().isOk())
@@ -83,6 +97,9 @@ class ExchangeRateSoapTests {
 			.andExpect(jsonPath("$.rate").value(25350));
 		mockMvc.perform(get("/exchange-rate").param("to", "ABC").with(oauth2Login()))
 			.andExpect(status().isBadRequest());
+		mockMvc.perform(get("/exchange-rate").param("from", " usd ").param("to", "vnd").with(oauth2Login()))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.from").value("USD"));
 		mockMvc.perform(get("/exchange-rate")).andExpect(status().isUnauthorized());
 	}
 
