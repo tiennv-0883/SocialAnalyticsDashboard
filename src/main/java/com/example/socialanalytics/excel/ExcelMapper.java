@@ -331,7 +331,7 @@ public final class ExcelMapper {
 		}
 	}
 
-	private static void writeCell(Cell cell, Object value, CellStyle dateStyle) {
+	static void writeCell(Cell cell, Object value, CellStyle dateStyle) {
 		if (value == null) {
 			cell.setBlank();
 		}
@@ -359,7 +359,7 @@ public final class ExcelMapper {
 		}
 	}
 
-	private static CellStyle headerStyle(Workbook workbook) {
+	static CellStyle headerStyle(Workbook workbook) {
 		Font font = workbook.createFont();
 		font.setBold(true);
 		CellStyle style = workbook.createCellStyle();

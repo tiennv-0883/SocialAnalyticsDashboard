@@ -42,6 +42,10 @@
             <b th:text="${metricCount}">0</b
             ><span class="muted">Snapshot metric</span>
           </div>
+          <div class="stat" th:if="${usdVnd}">
+            <b th:text="${#numbers.formatDecimal(usdVnd.rate, 1, 'COMMA', 0, 'POINT')}">25,350</b>
+            <span class="muted">USD/VND (SOAP, <span th:text="${usdVnd.date}"></span>)</span>
+          </div>
         </div>
       </div>
 
@@ -234,6 +238,20 @@
           Cột: platform, externalId, url, title, content. File mẫu:
           docs/samples/posts-sample.xlsx
         </p>
+      </div>
+
+      <div class="card">
+        <h2>Xuất dữ liệu</h2>
+        <div class="row">
+          <a
+            class="btn"
+            th:each="entity : ${exportEntities}"
+            th:href="@{/export/{name}(name=${entity})}"
+            th:text="${entity}"
+            >posts</a
+          >
+        </div>
+        <p class="muted">Xuất toàn bộ bảng ra Excel bằng Reflection (tối đa 100.000 dòng).</p>
       </div>
 
       <div class="card row">
